@@ -2,57 +2,43 @@
 <html lang="pl">
 <head>
   <script>
-/* ===== DEBUG BADGE (tymczasowe) ===== */
-(function debugBadge(){
-  // włącz/wyłącz: dodaj ?debug=0 żeby nie pokazywać
-  var q = new URLSearchParams(location.search);
-  if (q.get('debug') === '0') return;
-
+<script>
+/* ===== DEBUG BADGE v2 ===== */
+(function(){
   var box = document.createElement('div');
-  box.id = 'dbgBadge';
-  box.style.cssText = [
-    'position:fixed','z-index:999999','top:8px','left:8px',
-    'background:#0b0d11','color:#fff','padding:8px 10px',
-    'border-radius:10px','border:1px solid #ffffff33',
-    'font:12px/1.25 -apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif',
-    'box-shadow:0 6px 18px rgba(0,0,0,.35)','opacity:.94'
-  ].join(';');
+  box.style.cssText='position:fixed;z-index:999999;top:8px;left:8px;background:#0b0d11;color:#fff;padding:8px 10px;border-radius:10px;border:1px solid #ffffff33;font:12px/1.25 -apple-system,system-ui;box-shadow:0 6px 18px rgba(0,0,0,.35);opacity:.94';
+  var mode = (navigator.standalone || matchMedia('(display-mode: standalone)').matches)?'PWA':'Safari';
+  var html = ['Mode: <b>'+mode+'</b>','Path: <b>'+location.pathname+'</b>','SW: <i>sprawdzam…</i>'];
+  box.innerHTML = html.join('<br>');
+  document.addEventListener('DOMContentLoaded',()=>{document.body.appendChild(box); setTimeout(()=>{try{box.remove()}catch{}}, 1800);});
 
-  var mode = (window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches) ? 'PWA' : 'Safari';
-  var lines = [
-    'Mode: <b>'+mode+'</b>',
-    'Path: <b>'+location.pathname+'</b>'
-  ];
+  (async () => {
+    if (!('serviceWorker' in navigator)) { html[2]='SW: <b>brak wsparcia</b>'; box.innerHTML=html.join('<br>'); return; }
 
-  // spróbuj pobrać info o SW i storage
-  Promise.resolve().then(async () => {
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      try {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        const reg = regs.find(r => r.scope && r.scope.includes('/')) || regs[0];
-        if (reg) {
-          lines.push('SW scope: <b>'+ (new URL(reg.scope)).pathname +'</b>');
-        }
-      } catch {}
-    } else {
-      lines.push('SW: <b>brak</b>');
+    try{
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) { html[2]='SW: <b>niezarejestrowany</b>'; box.innerHTML=html.join('<br>'); return; }
+
+      let state = (reg.active && 'active') || (reg.waiting && 'waiting') || (reg.installing && reg.installing.state);
+      html[2] = 'SW: <b>'+(state||'zarejestrowany')+'</b><br>Scope: <b>'+new URL(reg.scope).pathname+'</b>';
+      box.innerHTML = html.join('<br>');
+
+      // pokaż, kiedy SW przejmie kontrolę
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        html[2] = 'SW: <b>active (controller)</b><br>Scope: <b>'+new URL(reg.scope).pathname+'</b>';
+        box.innerHTML = html.join('<br>');
+      });
+    }catch(e){
+      html[2]='SW: <b>błąd</b>'; box.innerHTML=html.join('<br>');
     }
 
-    if (navigator.storage && navigator.storage.estimate) {
-      try {
-        const est = await navigator.storage.estimate();
-        var used = Math.round((est.usage || 0)/1024/1024);
-        var quota = Math.round((est.quota || 0)/1024/1024);
-        lines.push('Storage: <b>'+used+' / '+quota+' MB</b>');
-      } catch {}
-    }
-
-    box.innerHTML = lines.join('<br>');
-    document.addEventListener('DOMContentLoaded', function(){
-      document.body.appendChild(box);
-      setTimeout(function(){ try{ box.remove(); }catch(e){} }, 1400);
-    });
-  });
+    // info o storage (opcjonalnie)
+    try{
+      const est = await navigator.storage.estimate();
+      const used = Math.round((est.usage||0)/1048576), quota = Math.round((est.quota||0)/1048576);
+      box.innerHTML += '<br>Storage: <b>'+used+' / '+quota+' MB</b>';
+    }catch{}
+  })();
 })();
 </script>
   <meta charset="utf-8" />
@@ -258,6 +244,15 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
       .then(reg => console.log('SW zarejestrowany:', reg.scope))
+      // jeżeli SW właśnie się aktywuje – odśwież TYLKO raz, aby przejął kontrolę
+        let reloaded = sessionStorage.getItem('sw-reloaded');
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!reloaded) {
+            sessionStorage.setItem('sw-reloaded','1');
+            location.reload();
+          }
+        });
+      })
       .catch(err => console.error('Błąd SW:', err));
   });
 }

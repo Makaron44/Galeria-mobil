@@ -1,5 +1,5 @@
 /** Wersja aplikacji (pokaże się w nagłówku i welcome) */
-const APP_VERSION = "v1.2.0";
+const APP_VERSION = "v1.2.1";
 
 /***** Ustawienia kompresji *****/
 const MAX_DIM = 1600;        // dłuższy bok przy "Skompresowana"

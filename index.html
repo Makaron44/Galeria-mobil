@@ -168,6 +168,19 @@
 
   <!-- HEIC→JPEG (działa, gdy jest internet) -->
   <script src="https://unpkg.com/heic2any/dist/heic2any.min.js"></script>
+  <script>
+  (function forceBase(){
+    // DOKŁADNIE nazwa repo (z „e”): /Galeria-mobile/
+    var base = '/Galeria-mobil/';
+    // jeśli ktoś odpali skrót z literówką lub inną ścieżką → przekieruj
+    try {
+      if (!location.pathname.startsWith(base)) {
+        location.replace(base);
+        return; // przerwij dalsze wykonywanie tego skryptu
+      }
+    } catch(_) {}
+  })();
+</script>
   <script src="app.js" defer></script>
 
   <!-- Fallback – schowaj welcome nawet, gdy JS się wywali -->

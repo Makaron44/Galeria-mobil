@@ -1,52 +1,12 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <script>
-<script>
-/* ===== DEBUG BADGE v2 ===== */
-(function(){
-  var box = document.createElement('div');
-  box.style.cssText='position:fixed;z-index:999999;top:8px;left:8px;background:#0b0d11;color:#fff;padding:8px 10px;border-radius:10px;border:1px solid #ffffff33;font:12px/1.25 -apple-system,system-ui;box-shadow:0 6px 18px rgba(0,0,0,.35);opacity:.94';
-  var mode = (navigator.standalone || matchMedia('(display-mode: standalone)').matches)?'PWA':'Safari';
-  var html = ['Mode: <b>'+mode+'</b>','Path: <b>'+location.pathname+'</b>','SW: <i>sprawdzam…</i>'];
-  box.innerHTML = html.join('<br>');
-  document.addEventListener('DOMContentLoaded',()=>{document.body.appendChild(box); setTimeout(()=>{try{box.remove()}catch{}}, 1800);});
-
-  (async () => {
-    if (!('serviceWorker' in navigator)) { html[2]='SW: <b>brak wsparcia</b>'; box.innerHTML=html.join('<br>'); return; }
-
-    try{
-      const reg = await navigator.serviceWorker.getRegistration();
-      if (!reg) { html[2]='SW: <b>niezarejestrowany</b>'; box.innerHTML=html.join('<br>'); return; }
-
-      let state = (reg.active && 'active') || (reg.waiting && 'waiting') || (reg.installing && reg.installing.state);
-      html[2] = 'SW: <b>'+(state||'zarejestrowany')+'</b><br>Scope: <b>'+new URL(reg.scope).pathname+'</b>';
-      box.innerHTML = html.join('<br>');
-
-      // pokaż, kiedy SW przejmie kontrolę
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        html[2] = 'SW: <b>active (controller)</b><br>Scope: <b>'+new URL(reg.scope).pathname+'</b>';
-        box.innerHTML = html.join('<br>');
-      });
-    }catch(e){
-      html[2]='SW: <b>błąd</b>'; box.innerHTML=html.join('<br>');
-    }
-
-    // info o storage (opcjonalnie)
-    try{
-      const est = await navigator.storage.estimate();
-      const used = Math.round((est.usage||0)/1048576), quota = Math.round((est.quota||0)/1048576);
-      box.innerHTML += '<br>Storage: <b>'+used+' / '+quota+' MB</b>';
-    }catch{}
-  })();
-})();
-</script>
   <meta charset="utf-8" />
   <title>Moja mobilna galeria</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0b0d11" />
 
-  <!-- PWA -->
+  <!-- Manifest -->
   <link rel="manifest" href="manifest.webmanifest">
 
   <!-- iOS PWA -->
@@ -54,26 +14,37 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Galeria">
   <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="./apple-touch-icon-167.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="./apple-touch-icon-152.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="./apple-touch-icon-120.png">
 
-  <!-- iOS splash (wybrane – dopisz inne modele, jeśli chcesz) -->
+  <!-- iOS splash (wybrane rozdzielczości) -->
   <link rel="apple-touch-startup-image" href="splash-1170x2532.png"
         media="(device-width: 390px) and (device-height: 844px)">
   <!-- iPhone 15 Pro -->
   <link rel="apple-touch-startup-image" href="splash-1179x2556.png"
         media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)">
-  <!-- iPhone 15 Pro Max (opcjonalnie) -->
+  <!-- iPhone 15 Pro Max -->
   <link rel="apple-touch-startup-image" href="splash-1290x2796.png"
         media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)">
 
   <link rel="stylesheet" href="styles.css" />
-<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
-<link rel="apple-touch-icon" sizes="167x167" href="./apple-touch-icon-167.png">
-<link rel="apple-touch-icon" sizes="152x152" href="./apple-touch-icon-152.png">
-<link rel="apple-touch-icon" sizes="120x120" href="./apple-touch-icon-120.png">
+
+  <!-- Base fix: wymuszaj /Galeria-mobil/ tylko na GitHub Pages, lokalnie NIE -->
+  <script>
+  (function normalize(){
+    var isProd = location.hostname.endsWith('github.io');
+    var base = '/Galeria-mobil/';   // U Ciebie tak nazywa się repo
+    if (isProd && !location.pathname.startsWith(base)) {
+      location.replace(base);
+    }
+  })();
+  </script>
 </head>
 <body>
 
-  <!-- WELCOME SCREEN (overlay) -->
+  <!-- WELCOME SCREEN -->
   <div id="welcome" class="welcome" aria-hidden="true">
     <div class="welcome-box">
       <div class="welcome-logo">
@@ -107,6 +78,8 @@
       <button class="chip chip-c3" data-filter="zwierzeta">Zwierzęta</button>
       <button class="chip chip-c4" data-filter="inne">Inne</button>
       <button id="openSettings" class="chip chip-settings">⚙️ Ustawienia</button>
+      <!-- NOWE: przycisk do ustawiania PIN-u -->
+      <button id="pinBtn" class="chip">🔒 PIN</button>
     </nav>
 
     <div class="actionsbar">
@@ -206,57 +179,61 @@
   <!-- Toast -->
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <!-- HEIC→JPEG (działa, gdy jest internet) -->
+  <!-- PIN modal (dodane) -->
+  <div id="pinModal" class="pin-modal hide" aria-hidden="true">
+    <div class="pin-box">
+      <h3 id="pinTitle">Odblokuj</h3>
+      <div class="pin-fields">
+        <input id="pinInput" class="pin-input" type="password"
+               inputmode="numeric" pattern="[0-9]*" maxlength="8"
+               placeholder="PIN (4–8 cyfr)" autocomplete="one-time-code">
+        <input id="pinInput2" class="pin-input hide" type="password"
+               inputmode="numeric" pattern="[0-9]*" maxlength="8"
+               placeholder="Powtórz PIN">
+      </div>
+      <p id="pinMsg" class="pin-msg"></p>
+      <div class="pin-row">
+        <button id="pinOk" class="pin-btn ok">OK</button>
+        <button id="pinCancel" class="pin-btn">Anuluj</button>
+      </div>
+      <p class="pin-note">Ochrona lokalna. Nie zapomnij PIN-u – nie można go odzyskać.</p>
+    </div>
+  </div>
+
+  <!-- HEIC→JPEG (gdy jest internet) -->
   <script src="https://unpkg.com/heic2any/dist/heic2any.min.js"></script>
-  <script>
-  (function forceBase(){
-    // DOKŁADNIE nazwa repo (z „e”): /Galeria-mobile/
-    var base = '/Galeria-mobil/';
-    // jeśli ktoś odpali skrót z literówką lub inną ścieżką → przekieruj
-    try {
-      if (!location.pathname.startsWith(base)) {
-        location.replace(base);
-        return; // przerwij dalsze wykonywanie tego skryptu
-      }
-    } catch(_) {}
-  })();
-</script>
+
+  <!-- Twoja aplikacja -->
   <script src="app.js" defer></script>
 
-<!-- Fallback — schowaj welcome nawet gdy coś zawiedzie -->
-<script>
-(function () {
-  function hide() {
-    var el = document.getElementById('welcome');
-    if (!el) return;
-    el.classList.add('hide');
-    setTimeout(function(){ try{ el.remove(); }catch(e){} }, 600);
+  <!-- Fallback — schowaj welcome nawet gdy coś zawiedzie -->
+  <script>
+  (function () {
+    function hide() {
+      var el = document.getElementById('welcome'); if (!el) return;
+      el.classList.add('hide'); setTimeout(function(){ try{ el.remove(); }catch(e){} }, 600);
+    }
+    window.addEventListener('load', hide, { once:true });
+    document.addEventListener('click', hide, { once:true });
+    document.addEventListener('touchstart', hide, { once:true });
+  })();
+  </script>
+
+  <!-- Rejestracja Service Workera -->
+  <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('SW zarejestrowany:', reg.scope))
+        .catch(err => console.error('Błąd SW:', err));
+
+      // jednokrotne odświeżenie, gdy SW przejmie kontrolę
+      let reloaded = sessionStorage.getItem('sw-reloaded');
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!reloaded) { sessionStorage.setItem('sw-reloaded','1'); location.reload(); }
+      });
+    });
   }
-  window.addEventListener('load', hide, { once:true });
-  document.addEventListener('click', hide, { once:true });
-  document.addEventListener('touchstart', hide, { once:true });
-})();
-</script>
-
-<!-- Rejestracja Service Workera -->
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('SW zarejestrowany:', reg.scope))
-      // jeżeli SW właśnie się aktywuje – odśwież TYLKO raz, aby przejął kontrolę
-        let reloaded = sessionStorage.getItem('sw-reloaded');
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (!reloaded) {
-            sessionStorage.setItem('sw-reloaded','1');
-            location.reload();
-          }
-        });
-      })
-      .catch(err => console.error('Błąd SW:', err));
-  });
-}
-</script>
-
+  </script>
 </body>
 </html>

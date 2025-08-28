@@ -1,5 +1,5 @@
 /** Wersja aplikacji (pokaże się w nagłówku i welcome) */
-const APP_VERSION = "v1.2.1";
+const APP_VERSION = "v1.2.2";
 
 /***** Ustawienia kompresji *****/
 const MAX_DIM = 1600;        // dłuższy bok przy "Skompresowana"
@@ -432,4 +432,79 @@ function base64ToBlob(b64, mime){ const bin=atob(b64); const len=bin.length; con
     });
     await render(); showToast('Usunięto niewspierane');
   });
+})();
+/* =========================
+   PIN – zabezpieczenie lokalne
+   ========================= */
+const PIN_HASH_KEY='pinHash', PIN_ATTEMPTS='pinAttempts', PIN_LOCK_UNTIL='pinLockUntil', PIN_LOCK_FLAG='pinLocked', PIN_SALT='mgaleria.v1';
+async function sha256(str){const data=new TextEncoder().encode(PIN_SALT+'|'+str);const buf=await crypto.subtle.digest('SHA-256',data);return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');}
+const pinIsSet=()=>!!localStorage.getItem(PIN_HASH_KEY);
+const pinResetTries=()=>{localStorage.removeItem(PIN_ATTEMPTS);localStorage.removeItem(PIN_LOCK_UNTIL);};
+
+(function setupPin(){
+  const modal=document.getElementById('pinModal'); if(!modal) return;
+  const pinBtn=document.getElementById('pinBtn');
+  const t=document.getElementById('pinTitle'), i1=document.getElementById('pinInput'), i2=document.getElementById('pinInput2'), msg=document.getElementById('pinMsg');
+  const ok=document.getElementById('pinOk'), cc=document.getElementById('pinCancel');
+  let mode='unlock', idleTimer;
+
+  function show(m){mode=m;modal.classList.remove('hide');msg.textContent='';msg.classList.remove('ok');i1.value='';i2.value='';i2.classList.toggle('hide',!(mode==='setup'||mode==='change'));t.textContent=(m==='setup')?'Ustaw PIN':(m==='disable')?'Wyłącz PIN':(m==='change')?'Zmień PIN':'Odblokuj';setTimeout(()=>i1.focus(),50);}
+  function hide(){modal.classList.add('hide');i1.value='';i2.value='';}
+  function lockNow(){localStorage.setItem(PIN_LOCK_FLAG,'1');show('unlock');}
+
+  pinBtn?.addEventListener('click',()=>{ if(!pinIsSet()) show('setup'); else show('change'); });
+
+  cc.addEventListener('click', () => {
+  alert("Musisz podać PIN, aby korzystać z aplikacji.");
+  location.reload(); // odśwież i znów wymusi PIN
+});
+
+  async function verify(pin){const h=localStorage.getItem(PIN_HASH_KEY);return h ? (await sha256(pin))===h : false;}
+  function wrong(){const n=(+localStorage.getItem(PIN_ATTEMPTS)||0)+1;localStorage.setItem(PIN_ATTEMPTS,String(n));if(n>=5){const until=Date.now()+30000;localStorage.setItem(PIN_LOCK_UNTIL,String(until));localStorage.setItem(PIN_ATTEMPTS,'0');}msg.textContent='Zły PIN';i1.classList.add('error');navigator.vibrate?.(100);}
+
+  async function handleOk(){
+    const lockUntil=+localStorage.getItem(PIN_LOCK_UNTIL)||0;
+    if(Date.now()<lockUntil){msg.textContent=`Zbyt wiele prób. Poczekaj ${Math.ceil((lockUntil-Date.now())/1000)}s`;i1.classList.add('error');return;}
+    i1.classList.remove('error');i2.classList.remove('error');msg.textContent='';
+
+    if(mode==='setup'){
+      const p1=i1.value.trim(),p2=i2.value.trim();
+      if(p1.length<4||p1.length>8||!/^\d+$/.test(p1)){msg.textContent='PIN: 4–8 cyfr';i1.classList.add('error');return;}
+      if(p1!==p2){msg.textContent='PINy muszą być identyczne';i2.classList.add('error');return;}
+      localStorage.setItem(PIN_HASH_KEY,await sha256(p1));
+      pinResetTries(); localStorage.setItem(PIN_LOCK_FLAG,'1');
+      msg.textContent='PIN ustawiony ✓'; msg.classList.add('ok'); setTimeout(hide,600); return;
+    }
+
+    if(mode==='change'){
+      if(!pinIsSet()){ show('setup'); return; }
+      const oldOk=await verify(i1.value.trim());
+      if(!oldOk){wrong();return;}
+      i1.placeholder='Nowy PIN'; i1.value=''; i2.classList.remove('hide'); mode='setup'; return;
+    }
+
+    if(mode==='disable'){
+      const okNow=await verify(i1.value.trim());
+      if(!okNow){wrong();return;}
+      localStorage.removeItem(PIN_HASH_KEY); pinResetTries(); hide(); return;
+    }
+
+    // unlock
+    const good=await verify(i1.value.trim());
+    if(!good){wrong();return;}
+    pinResetTries(); localStorage.removeItem(PIN_LOCK_FLAG); hide();
+  }
+  ok.addEventListener('click',handleOk);
+  i1.addEventListener('keyup',e=>{if(e.key==='Enter')handleOk();});
+  i2.addEventListener('keyup',e=>{if(e.key==='Enter')handleOk();});
+
+  // auto-lock po powrocie z tła
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&pinIsSet())lockNow();});
+  // auto-lock po bezczynności 2 min
+  ['click','touchstart','keydown'].forEach(ev=>document.addEventListener(ev,resetIdle,true));
+  function resetIdle(){clearTimeout(idleTimer); if(pinIsSet()) idleTimer=setTimeout(lockNow,120000);}
+  resetIdle();
+
+  // blokuj przy starcie, gdy był ustawiony
+  document.addEventListener('DOMContentLoaded',()=>{if(pinIsSet()&&localStorage.getItem(PIN_LOCK_FLAG)==='1') show('unlock');});
 })();

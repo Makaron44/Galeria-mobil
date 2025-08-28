@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <title>Moja mobilna galeria</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0d11" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+
+  <!-- iOS PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Galeria">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <!-- iOS splash (wybrane – dopisz inne modele, jeśli chcesz) -->
+  <link rel="apple-touch-startup-image" href="splash-1170x2532.png"
+        media="(device-width: 390px) and (device-height: 844px)">
+  <!-- iPhone 15 Pro -->
+  <link rel="apple-touch-startup-image" href="splash-1179x2556.png"
+        media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)">
+  <!-- iPhone 15 Pro Max (opcjonalnie) -->
+  <link rel="apple-touch-startup-image" href="splash-1290x2796.png"
+        media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)">
+
+  <link rel="stylesheet" href="styles.css" />
+<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="167x167" href="./apple-touch-icon-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="./apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="./apple-touch-icon-120.png">
+</head>
+<body>
+
+  <!-- WELCOME SCREEN (overlay) -->
+  <div id="welcome" class="welcome" aria-hidden="true">
+    <div class="welcome-box">
+      <div class="welcome-logo">
+        <div class="cam">
+          <div class="lens"></div>
+          <div class="slot"></div>
+          <div class="slot2"></div>
+        </div>
+      </div>
+      <div class="welcome-title">Moja mobilna galeria</div>
+      <div class="welcome-sub">Witaj! Wczytuję… <span id="welcomeVer"></span></div>
+      <div class="welcome-tip">Dotknij, aby pominąć</div>
+    </div>
+  </div>
+
+  <header class="app-header glass">
+    <div class="topbar">
+      <h1>Moja mobilna galeria <span id="appVersion" class="version"></span></h1>
+      <span id="countBadge" class="count-badge">0</span>
+    </div>
+
+    <div class="searchbar">
+      <input id="searchInput" type="search" placeholder="Szukaj po tytule lub opisie…" enterkeyhint="search" />
+      <button id="clearSearch" aria-label="Wyczyść">✕</button>
+    </div>
+
+    <nav id="filters" class="toolbar" aria-label="Filtry kategorii">
+      <button class="chip active" data-filter="all">Wszystko</button>
+      <button class="chip chip-c1" data-filter="krajobraz">Krajobrazy</button>
+      <button class="chip chip-c2" data-filter="ludzie">Ludzie</button>
+      <button class="chip chip-c3" data-filter="zwierzeta">Zwierzęta</button>
+      <button class="chip chip-c4" data-filter="inne">Inne</button>
+      <button id="openSettings" class="chip chip-settings">⚙️ Ustawienia</button>
+    </nav>
+
+    <div class="actionsbar">
+      <button id="btnExport" class="mini-btn ripple">⤴︎ Eksport</button>
+      <label class="mini-btn ripple">
+        ⤵︎ Import
+        <input id="importInput" type="file" accept="application/json" hidden />
+      </label>
+      <button id="btnClearUnsupported" class="mini-btn danger ripple">🧹 Usuń niewspierane</button>
+    </div>
+  </header>
+
+  <main class="app-main" id="main">
+    <div id="grid" class="grid"></div>
+    <p id="empty" class="empty" hidden>Brak zdjęć. Dodaj pierwsze! 📷</p>
+  </main>
+
+  <!-- Ukryte inputy -->
+  <input id="cameraInput" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden />
+  <input id="galleryInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden />
+
+  <!-- Przyciski pływające -->
+  <div class="fab" role="group" aria-label="Dodawanie zdjęć">
+    <button id="camBtn" class="btn btn-primary ripple action-btn">📷 Aparat</button>
+    <button id="galBtn" class="btn btn-secondary ripple action-btn">🖼️ Galeria</button>
+    <button id="openSheet" class="btn btn-secondary ripple action-btn">➕ Opis/kategoria</button>
+  </div>
+
+  <!-- Panel dodawania/edycji -->
+  <section class="sheet" id="sheet" aria-hidden="true">
+    <h2 id="sheetTitle">Dodaj informacje o zdjęciu</h2>
+    <p class="hint">Najpierw wybierz zdjęcie z Aparatu lub Galerii, potem uzupełnij i zapisz.</p>
+    <label class="fld">Tytuł
+      <input id="titleInput" type="text" placeholder="np. Spacer w górach" />
+    </label>
+    <label class="fld">Opis
+      <textarea id="descInput" placeholder="Krótki opis zdjęcia..."></textarea>
+    </label>
+    <label class="fld">Kategoria
+      <select id="catInput">
+        <option value="krajobraz">Krajobraz</option>
+        <option value="ludzie">Ludzie</option>
+        <option value="zwierzeta">Zwierzęta</option>
+        <option value="inne" selected>Inne</option>
+      </select>
+    </label>
+    <div class="sheet-actions">
+      <button class="btn btn-neutral ripple" id="cancelBtn">Anuluj</button>
+      <button class="btn btn-primary ripple" id="saveBtn">Zapisz</button>
+    </div>
+  </section>
+
+  <!-- Panel ustawień jakości -->
+  <section class="sheet" id="settingsSheet" aria-hidden="true">
+    <h2>Ustawienia jakości zdjęć</h2>
+    <p class="hint">Dotyczy nowych zdjęć dodawanych do galerii.</p>
+    <div class="radio-group">
+      <label class="radio">
+        <input type="radio" name="quality" value="compressed" checked>
+        <span>🔄 Skompresowana (zalecane)</span>
+      </label>
+      <label class="radio">
+        <input type="radio" name="quality" value="full">
+        <span>💾 Pełna jakość</span>
+      </label>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn btn-neutral ripple" id="settingsCancel">Zamknij</button>
+      <button class="btn btn-primary ripple" id="settingsSave">Zapisz ustawienia</button>
+    </div>
+  </section>
+
+  <!-- Menu Edytuj/Usuń -->
+  <section class="action-sheet" id="actionMenu" aria-hidden="true">
+    <div class="action-content">
+      <button class="action-btn" id="actEdit">✏️ Edytuj</button>
+      <button class="action-btn danger" id="actDelete">🗑️ Usuń</button>
+      <button class="action-btn" id="actCancel">Anuluj</button>
+    </div>
+  </section>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox" aria-hidden="true">
+    <button class="closeX" id="closeLightbox" aria-label="Zamknij">✕</button>
+    <img id="lightImg" class="fade-img" alt="" />
+    <div class="info">
+      <div id="lightTitle" class="light-title"></div>
+      <div id="lightDesc" class="light-desc"></div>
+    </div>
+    <div class="lb-controls">
+      <button id="prevBtn" class="mini-btn ripple">⏮</button>
+      <button id="playPauseBtn" class="mini-btn ripple">⏵</button>
+      <button id="nextBtn" class="mini-btn ripple">⏭</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- HEIC→JPEG (działa, gdy jest internet) -->
+  <script src="https://unpkg.com/heic2any/dist/heic2any.min.js"></script>
+  <script src="app.js" defer></script>
+
+  <!-- Fallback – schowaj welcome nawet, gdy JS się wywali -->
+  <script>
+    (function () {
+      function hide() {
+        var el = document.getElementById('welcome');
+        if (!el) return;
+        el.classList.add('hide');
+        setTimeout(function(){ try{ el.remove(); }catch(e){} }, 700);
+      }
+      window.addEventListener('load', function () { setTimeout(hide, 1800); });
+      document.addEventListener('click', function () { if (document.getElementById('welcome')) hide(); }, { once: true });
+      document.addEventListener('touchstart', function () { if (document.getElementById('welcome')) hide(); }, { once: true, passive: true });
+    })();
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js'); });
+    }
+  </script>
+</body>
+</html>

@@ -236,30 +236,32 @@
   })();
 </script>
   <script src="app.js" defer></script>
-         <script>
+
+<!-- Fallback — schowaj welcome nawet gdy coś zawiedzie -->
+<script>
+(function () {
+  function hide() {
+    var el = document.getElementById('welcome');
+    if (!el) return;
+    el.classList.add('hide');
+    setTimeout(function(){ try{ el.remove(); }catch(e){} }, 600);
+  }
+  window.addEventListener('load', hide, { once:true });
+  document.addEventListener('click', hide, { once:true });
+  document.addEventListener('touchstart', hide, { once:true });
+})();
+</script>
+
+<!-- Rejestracja Service Workera -->
+<script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('SW zarejestrowany', reg.scope))
-      .catch(err => console.error('Błąd SW', err));
+      .then(reg => console.log('SW zarejestrowany:', reg.scope))
+      .catch(err => console.error('Błąd SW:', err));
   });
 }
-
-  <!-- Fallback – schowaj welcome nawet, gdy JS się wywali -->
-  <script>
-    (function () {
-      function hide() {
-        var el = document.getElementById('welcome');
-        if (!el) return;
-        el.classList.add('hide');
-        setTimeout(function(){ try{ el.remove(); }catch(e){} }, 700);
-      }
-      window.addEventListener('load', function () { setTimeout(hide, 1800); });
-      document.addEventListener('click', function () { if (document.getElementById('welcome')) hide(); }, { once: true });
-      document.addEventListener('touchstart', function () { if (document.getElementById('welcome')) hide(); }, { once: true, passive: true });
- 
-    })();
- 
 </script>
+
 </body>
 </html>
